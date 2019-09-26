@@ -1,0 +1,323 @@
+﻿¨@using System.Linq.Expressions
+@using System.Security.Cryptography.X509Certificates
+@using TicTacToeBlazerFun.HelperClasses
+<style>
+    h1 {
+        text-align: center;
+    }
+
+    td {
+        width: 100px;
+        height: 100px;
+    }
+
+    table.TicTacToe td.EmptyCell:hover {
+        background-color: #171819;
+        background-color: rgba(23, 24, 25, 0.21) !important;
+    }
+
+    table.TicTacToe {
+        margin: 5px auto;
+        text-align: center;
+        font-size: xx-large;
+        -webkit-user-select: none; /* Safari */
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+/Edge */
+        user-select: none; /* Standard */
+    }
+
+    .vert {
+        border-left: 2px solid black;
+        border-right: 2px solid black;
+    }
+
+    .hori {
+        border-top: 2px solid black;
+        border-bottom: 2px solid black;
+    }
+
+    .GameOver {
+        text-align: center
+    }
+</style>
+@* ReSharper disable once PossiblyUnassignedProperty *@
+@if (GameOver)
+{
+    <div class="GameOver">
+
+        @if (_gameWinner == _drawChar.ToString())
+        {
+            <h1>The game is a Draw</h1>
+        }
+        else
+        {
+            <h1>The winner is @_gameWinner</h1>
+        }
+        <br />
+        <button class="GameOver" @onclick="StartGame">New Game</button>
+        <button class="GameOver" @onclick="ChangeSettings">Change Settings</button>
+        <br />
+
+    </div>
+
+}
+else
+{
+    <h1>@_gameWinner Place you move</h1>
+}
+
+<table class="TicTacToe">
+    @for (int i = 0; i < 3; i++)
+    {
+        <tr>
+            @for (int j = 0; j < 3; j++)
+            {
+                var tempi = i;
+                var tempj = j;
+                <td @onclick='@(async () => await PlaceItem(tempi,tempj))' class="@(i == 1 ? "hori" : "") @(j == 1 ? "vert" : "") @(@_board[i, j] == default(char) && !GameOver ? "EmptyCell" : "")">@_board[i, j]</td>
+            }
+        </tr>
+    }
+</table>
+@if (AiMoving)
+{
+    <h1>Ai is thinking</h1>
+}
+
+@code {
+    static char _drawChar = '|';
+    char[,] _board;
+
+    [Parameter]
+    public List<Player> Players { get; set; }
+
+    [Parameter]
+    public EventCallback OnChangeSettingsRequested { get; set; }
+
+    int _currentPlayer;
+    bool AiMoving = false;
+
+    bool GameOver
+    {
+        get { return !string.IsNullOrEmpty(_gameWinner); }
+    }
+
+    string _gameWinner;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await StartGame();
+    }
+
+    async Task StartGame()
+    {
+        _board = new char[3, 3];
+        _currentPlayer = 0;
+        _gameWinner = null;
+        if (Players.Count < 2)
+        {
+            Console.WriteLine(Players.Count);
+        }
+        if (!OnChangeSettingsRequested.HasDelegate)
+        {
+            Console.WriteLine("not good");
+        }
+        await CheckIfPlayerIsAiAndMove(Players, _currentPlayer, _board);
+    }
+
+    async Task ChangeSettings()
+    {
+        await OnChangeSettingsRequested.InvokeAsync(null);
+    }
+
+    async Task PlaceItem(int x, int y)
+    {
+        if (GameOver)
+        {
+            return;
+        }
+
+        if (_board[x, y] == default(char))
+        {
+            _board[x, y] = Players.ElementAt(_currentPlayer).Symbol;
+        }
+        else
+        {
+            return;
+        }
+        var winner = GetWinner(_board);
+        if (winner != default(char))
+        {
+            var winningPlayer = Players.FirstOrDefault(i => i.Symbol == winner);
+            if (winningPlayer == null)
+            {
+                _gameWinner = _drawChar.ToString();
+            }
+            else
+            {
+                _gameWinner = winningPlayer.Name;
+            }
+            return;
+        }
+        _currentPlayer = GetNextPlayer(Players, _currentPlayer);
+        StateHasChanged();
+        await Task.Delay(10);
+        await CheckIfPlayerIsAiAndMove(Players, _currentPlayer, _board);
+    }
+
+    private async Task CheckIfPlayerIsAiAndMove(List<Player> players, int currentPlayer, char[,] board)
+    {
+        var player = players[currentPlayer];
+        if (player.AiLevel != null)
+        {
+            if (player.AiLevel == 0)
+            {
+                AiMoving = true;
+                StateHasChanged();
+                await Task.Delay(10);
+                var Move = GetRandomAiMove(players, board);
+                await PlaceItem(Move.x, Move.y);
+            }
+            else
+            {
+                AiMoving = true;
+                StateHasChanged();
+                await Task.Delay(10);
+                var Move = await Task.Run(() => GetGoodAiMove(players, currentPlayer, player.AiLevel.Value, board).placement);
+                await PlaceItem(Move.x, Move.y);
+            }
+            AiMoving = false;
+        }
+    }
+
+
+
+    int GetNextPlayer(List<Player> players, int currentPlayer)
+    {
+        currentPlayer++;
+        if (currentPlayer == players.Count)
+        {
+            currentPlayer = 0;
+        }
+        return currentPlayer;
+    }
+
+    char GetWinner(char[,] board)
+    {
+        //Check rows
+        for (int i = 0; i < 3; i++)
+        {
+            if (board[0, i] == board[1, i] && board[0, i] == board[2, i] && board[0, i] != default(char))
+            {
+                return board[0, i];
+            }
+        }
+
+        //Check Columns
+        for (int i = 0; i < 3; i++)
+        {
+            if (board[i, 0] == board[i, 1] && board[i, 0] == board[i, 2] && board[i, 0] != default(char))
+            {
+                return board[i, 0];
+
+            }
+        }
+
+        //Check diagonal
+        if (board[0, 0] == board[1, 1] && board[0, 0] == board[2, 2] && board[0, 0] != default(char))
+        {
+            return board[0, 0];
+
+        }
+        //Check Anti diagonal
+        if (board[0, 2] == board[1, 1] && board[0, 2] == board[2, 0] && board[0, 2] != default(char))
+        {
+            return board[0, 2];
+
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            for (int j = 0; j < 3; j++)
+            {
+                if (board[i, j] == default(char))
+                {
+                    return default(char);
+                }
+            }
+        }
+        return _drawChar;
+    }
+
+    (int x, int y) GetRandomAiMove(List<Player> players, char[,] board)
+    {
+        List<(int x, int y)> legalMoves = new List<(int x, int y)>();
+        for (int i = 0; i < 3; i++)
+        {
+            for (int j = 0; j < 3; j++)
+            {
+                if (board[i, j] != default(char))
+                {
+                    continue;
+                }
+                legalMoves.Add((i, j));
+            }
+        }
+
+        Random rand = new Random();
+        return legalMoves[rand.Next(legalMoves.Count)];
+        throw new NotImplementedException();
+    }
+
+    (int MoveValue, (int x, int y) placement) GetGoodAiMove(List<Player> players, int currentPlayer, short level, char[,] board)
+    {
+        if (level == 0)
+        {
+            return (0, (0, 0));
+        }
+
+        int bestMoveValue = short.MinValue;
+        (int x, int y) bestMove = (0, 0);
+        int[,] moveValues = new int[3, 3];
+
+        for (int i = 0; i < 3; i++)
+        {
+            for (int j = 0; j < 3; j++)
+            {
+                if (board[i, j] != default(char))
+                {
+                    continue;
+                }
+                board[i, j] = players[currentPlayer].Symbol;
+                var winner = GetWinner(board);
+                if (winner == players[currentPlayer].Symbol)
+                {
+                    moveValues[i, j] = 100;
+                }
+
+                else if (winner == _drawChar)
+                {
+                    moveValues[i, j] = 0;
+                }
+
+                else
+                {
+                    moveValues[i, j] = 0 - GetGoodAiMove(players, GetNextPlayer(players, currentPlayer), (short)(level - 1), board).MoveValue;
+                }
+                var random = new Random();
+                if (moveValues[i, j] == bestMoveValue && random.Next(2) == 1)
+                {
+                    bestMove = (i, j);
+
+                }
+                if (moveValues[i, j] > bestMoveValue)
+                {
+                    bestMove = (i, j);
+                    bestMoveValue = moveValues[i, j];
+                }
+
+                board[i, j] = default(char);
+            }
+        }
+        return (bestMoveValue, bestMove);
+    }
+}

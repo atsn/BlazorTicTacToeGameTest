@@ -1,0 +1,107 @@
+﻿@page "/PlayTicTacToe"
+@using TicTacToeBlazerFun.HelperClasses
+<h3>PlayTicTacToe</h3>
+<style>
+    .TicTacToeSettingDiv .input, select {
+        width: 100%;
+        padding: 12px 20px;
+        margin: 8px 0;
+        display: inline-block;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .TicTacToeSettingDiv .SubmitButton {
+        width: 100%;
+        background-color: #4CAF50;
+        color: white;
+        padding: 14px 20px;
+        margin: 8px 0;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .TicTacToeSettingDiv label {
+        display: contents !important;
+    }
+
+    .TicTacToeSettingDiv {
+        border-radius: 5px;
+        background-color: #f2f2f2;
+        padding: 20px;
+    }
+</style>
+@if (_isGameRunning)
+{
+    <TicTacToe Players="@_chosenPlayers" OnChangeSettingsRequested="StopGame"></TicTacToe>
+}
+else
+{
+    <div class="TicTacToeSettingDiv">
+        <EditForm Model="@_players" OnValidSubmit="@StartGame">
+            <div class="row">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                @foreach (ChosePlayerModel player in _players)
+                {
+                    <div class="col-md-6">
+                        <label class="TicTacToe" for="@player.Name">Name</label>
+                        <InputText class="input" id="name" @bind-Value="@player.Name" />
+                        <br />
+                        <label for="@player.Symbol">Symbol</label>
+                        <InputSelect id="symbol" @bind-Value="@player.Symbol">
+                            <option value="X">X</option>
+                            <option value="O">O</option>
+                            <option value="-">-</option>
+                            <option value="*">*</option>
+                            <option value="/">/</option>
+                            <option value="+">+</option>
+                        </InputSelect>
+                        <br />
+                        <label for="@player.AiLevel">Difficulty</label>
+                        <InputSelectNumber id="difficulty" @bind-Value="@player.AiLevel">
+                            <option value="-1">Choose Level</option>
+                            <option value="-1">Human Player</option>
+                            <option value="0">Easy</option>
+                            <option value="1">Medium</option>
+                            <option value="2">Hard</option>
+                            <option value="9">Impossible</option>
+                        </InputSelectNumber>
+                    </div>
+                }
+            </div>
+            <button class="SubmitButton" type="submit">Start Game</button>
+
+        </EditForm>
+    </div>
+}
+
+@code {
+    bool _isGameRunning = false;
+    List<ChosePlayerModel> _players;
+    List<Player> _chosenPlayers = new List<Player>();
+
+    protected override void OnInitialized()
+    {
+        _players = new List<ChosePlayerModel>();
+        _players.Add(new ChosePlayerModel() { Symbol = "O" });
+        _players.Add(new ChosePlayerModel() { Symbol = "X" });
+    }
+
+    void StopGame()
+    {
+        _isGameRunning = false;
+        _chosenPlayers.Clear();
+    }
+
+    void StartGame()
+    {
+        _isGameRunning = true;
+        _chosenPlayers = new List<Player>();
+        _chosenPlayers.AddRange(_players.Select(i => i.GetPlayer()));
+
+    }
+
+}
